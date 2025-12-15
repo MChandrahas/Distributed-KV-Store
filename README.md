@@ -17,26 +17,28 @@ This is an **academic-grade exploration** of distributed systems fundamentals. T
 
 ---
 
-## 2. System Architecture (Phase 2)
+## 2. System Architecture (Phase 3: Persistence)
 
 ```mermaid
 graph TD
-    Client[gRPC Client] -->|PUT key=100| Leader[Node 1: Leader]
-    Leader -->|Async Replicate| Follower1[Node 2: Follower]
-    Leader -->|Async Replicate| Follower2[Node 3: Follower]
-
+    Client[gRPC Client] -->|1. PUT key=100| Leader[Node 1: Leader]
+    
     subgraph "Internal Node Architecture"
-        Leader
-        Index[(B+ Tree)]
+        Leader -->|2. Append| WAL[Disk: Write-Ahead Log]
+        WAL -->|3. Update| Index[(RAM: B+ Tree)]
     end
-````
+
+    Leader -->|4. Async Replicate| Follower1[Node 2]
+    Leader -->|4. Async Replicate| Follower2[Node 3]
+```
 
 ### Components
 
-* **Communication:** gRPC (Protobuf) over Netty
-* **Storage Engine:** In-memory B+ Tree (Order 128)
-* **Replication:** Naive Leader–Follower (Push model)
-* **Discovery:** Static peer lists via environment variables
+* **Communication:** gRPC (Protobuf) over Netty.
+* **Storage Engine:** In-memory B+ Tree (Order 128).
+* **Persistence:** Write-Ahead Log (WAL) for crash recovery.
+* **Replication:** Naive Leader–Follower (Push model).
+* **Discovery:** Static peer lists via environment variables.
 
 ---
 

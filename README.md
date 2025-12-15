@@ -1,163 +1,53 @@
-# Distributed KV Store: A Learning Project  
 
-**Status:** Week 1 (Single-Node Foundation)  
-**License:** MIT  
-**Code:** `https://github.com/MChandrahas/Distributed-KV-Store`  
+1. Start cluster (Nodes 1, 2, 3).
+2. **Kill Node 2** (`docker stop kv-node-2`).
+3. Write `Key=999` to Leader. Leader accepts it (Availability > Consistency).
+4. **Revive Node 2** (`docker start kv-node-2`).
+5. Read `Key=999` from Node 2.
 
----
+#### The Result
 
-## What Is This?
+* Leader returns: `Value: GhostData`
+* Node 2 returns: `null` (data missing)
 
-This is an **academic exploration** of distributed systems fundamentals—not a production database. I'm building a simple key-value store with leader-follower replication to **understand why consensus is hard**.
+#### Root Cause
 
-**Current Scope:** Single-node KV engine with in-memory B+ tree indexing.  
-**Next Phase:** Async replication across 3 Docker containers.
+The system lacks **Anti-Entropy** (log replay). When a node reconnects, it has no way to ask *“What did I miss?”*. This proves naive replication is insufficient for data safety.
 
----
-
-## Architecture (Phase 1)
-
-```
-┌─────────────────────────────────────┐
-│          gRPC Client                │
-└──────────────┬──────────────────────┘
-               │
-┌──────────────▼──────────────────────┐
-│   KV Service (Single Node)          │
-│  ┌─────────────┐  ┌──────────────┐ │
-│  │ Query Parser│  │ B+ Tree Index│ │
-│  │ (JSQLParser)│  │  (In-Memory) │ │
-│  └─────────────┘  └──────────────┘ │
-└─────────────────────────────────────┘
-```
-
-**Components:**
-- **JSQLParser:** Handles `SELECT`, `INSERT`, `UPDATE`, `DELETE` with `WHERE` clauses.
-- **B+ Tree:** Integer keys only, fanout=128. Supports `rangeQuery(keyStart, keyEnd)`.
-- **Storage:** `TreeMap<byte[], byte[]>` (in-memory, no persistence).
+**Next Step (Phase 3/4):** Implement Raft log matching to fix this.
 
 ---
 
-## Quick Start
+## 5. Benchmarks
 
-```bash
-# Clone
-git clone https://github.com/yourusername/distributed-kv-store.git
-cd distributed-kv-store
-
-# Build
-./gradlew build
-
-# Run single-node server
-docker-compose up kv-node-1
-
-# Run client example
-./gradlew runClient --args="INSERT key1 value1"
-./gradlew runClient --args="SELECT key1"
-```
-
-**Requirements:** Java 17, Docker, Docker Compose.
+| Operation            | Target   | Latency (Avg) | Throughput   |
+| -------------------- | -------- | ------------- | ------------ |
+| **Local Write**      | B+ Tree  | 0.05 ms       | ~20k ops/sec |
+| **Replicated Write** | 3 Nodes  | 2.10 ms       | ~4k ops/sec  |
+| **Stale Read**       | Follower | 0.80 ms       | High         |
 
 ---
 
-## Benchmarks (Phase 1)
+## 6. Limitations (Interview Guide)
 
-| Operation | Rows | Time (avg) | Notes |
-|-----------|------|------------|-------|
-| Insert    | 10K  | 0.3ms      | With B+ tree index |
-| Range Query (100 keys) | 10K | 0.8ms | vs. 15ms full scan |
-| Point Query | 10K | 0.05ms | Indexed |
+**Explicit gaps between this and production:**
 
-*Run benchmarks:* `./gradlew benchmark`
-
----
-
-## Known Limitations (`LIMITATIONS.md`)
-
-**Do not use this in production.** This is a toy project.
-
-- **No persistence:** All data lost on restart. No WAL, no disk I/O.
-- **No consensus:** Leader election is manual. No Raft/Paxos.
-- **No split-brain protection:** Followers can both promote themselves.
-- **No distributed transactions:** Writes are best-effort, no 2PC.
-- **Simplified SQL:** No JOINs, subqueries, or aggregations yet.
-- **No lock manager:** Concurrent writes are serializable but not stress-tested.
-
-**See `docs/split-brain-analysis.md` for why these are hard.**
+* **No Persistence:** Data lives in RAM. A crash = total data loss.
+* **No Leader Election:** If Node 1 dies, the system is dead.
+* **No WAL:** Cannot replay transactions on startup.
+* **No Sharding:** Every node holds 100% of the data.
 
 ---
 
-## What Broke & What I Learned
+## 7. Tech Stack
 
-### **Failure #1: B+ Tree Page Splits Corrupted Sibling Pointers**
-- **Symptom:** Range queries returned duplicate keys after 500 inserts.
-- **Root Cause:** Wasn't updating `rightSibling` pointer during split under concurrent inserts.
-- **Fix:** Added hand-over-hand latching. **Lesson:** Lock coupling is subtle.
-- **[Commit `a1b2c3d`](link-to-commit)**
-
-### **Failure #2: Follower Replication Lag Spiked to 10s**
-- **Symptom:** During chaos test, follower fell behind.
-- **Root Cause:** Synchronous gRPC blocking on slow follower.
-- **Fix:** Changed to **async streaming**. **Lesson:** Sync replication kills availability.
-- **[Commit `e4f5g6h`](link-to-commit)**
-
-### **Failure #3: Killing Leader → Split-Brain**
-- **Symptom:** Both followers promoted themselves after leader died.
-- **Root Cause:** No consensus protocol; each follower thinks it's alone.
-- **Lesson:** **This is why Raft exists.** Documented in `docs/split-brain-analysis.md`.
-
----
-
-## Roadmap (GitHub Issues)
-
-- [Issue #1] Add Raft leader election (in progress)  
-- [Issue #2] Persist WAL to disk with fsync  
-- [Issue #3] Implement automatic failover  
-- [Issue #4] Add Redis caching layer (experimental)  
-
----
-
-## Tech Stack
-
-- **Language:** Java 17 (Project Lombok for boilerplate)
-- **RPC:** gRPC (async streaming for replication)
-- **Testing:** JUnit 5, Mockito, Pumba (chaos engineering)
-- **Observability:** Prometheus metrics (port 9090)
-- **Build:** Gradle
-- **Infra:** Docker, Docker Compose
-
----
-
-## How to Run Chaos Tests
-
-```bash
-# Start 3 nodes
-docker-compose up -d
-
-# Kill leader after 10s
-pumba kill --signal SIGTERM kv-node-1 &
-
-# Watch metrics
-curl http://localhost:9090/metrics | grep replication_lag
-
-# See failover behavior
-docker logs kv-node-2
-```
-
-**Expected:** Split-brain occurs. Followers both promote. **This is the point.**
-
----
-
-## Contributing
-
-This is a solo learning project. Issues and PRs for educational discussion welcome.
+* **Java 17**
+* **gRPC / Protobuf**
+* **Docker Compose**
+* **Gradle 8.5**
 
 ---
 
 ## License
 
-MIT - Feel free to use this to learn from my mistakes.
-
----
-
-**P.S. for Interviewers:** If you're reading this, I'm happy to walk through the B+ tree split logic or the chaos test results. I built this to understand why production systems are so complex—not to claim they're easy.
+MIT — use this to learn from my mistakes.

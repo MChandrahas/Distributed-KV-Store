@@ -5,34 +5,32 @@ import io.grpc.ManagedChannelBuilder;
 
 public class Client {
     public static void main(String[] args) {
-        // 1. Create a connection to the Server
-        ManagedChannel channel = ManagedChannelBuilder.forAddress("localhost", 9090)
-                .usePlaintext() // Disable SSL for local testing
+        // Default to Node 1 (9091) if no arguments provided
+        int port = 9091;
+        if (args.length > 0) {
+            port = Integer.parseInt(args[0]);
+        }
+
+        System.out.println("--- Connecting to Node at Port " + port + " ---");
+
+        ManagedChannel channel = ManagedChannelBuilder.forAddress("localhost", port)
+                .usePlaintext()
                 .build();
 
-        // 2. Create the "Stub" (The object we call methods on)
         KVStoreGrpc.KVStoreBlockingStub stub = KVStoreGrpc.newBlockingStub(channel);
 
-        System.out.println("--- Client Started ---");
-
-        // --- TEST 1: PUT ---
-        System.out.println("1. Inserting Key=1001, Value=Alice");
-        KVStoreProto.PutRequest putReq = KVStoreProto.PutRequest.newBuilder()
-                .setKey("1001")
-                .setValue("Alice")
-                .build();
-        
-        KVStoreProto.PutResponse putResp = stub.put(putReq);
-        System.out.println("   Success: " + putResp.getSuccess());
-
-        // --- TEST 2: GET ---
-        System.out.println("2. Querying Key=1001");
-        KVStoreProto.GetRequest getReq = KVStoreProto.GetRequest.newBuilder()
-                .setKey("1001")
-                .build();
-        
-        KVStoreProto.GetResponse getResp = stub.get(getReq);
-        System.out.println("   Result: " + getResp.getValue());
+        // 1. Write Data
+        if (args.length > 1 && args[1].equals("PUT")) {
+            System.out.println("PUT key=" + args[2] + " value=" + args[3]);
+            stub.put(KVStoreProto.PutRequest.newBuilder().setKey(args[2]).setValue(args[3]).build());
+            System.out.println("Success!");
+        } 
+        // 2. Read Data
+        else if (args.length > 1 && args[1].equals("GET")) {
+            System.out.println("GET key=" + args[2]);
+            KVStoreProto.GetResponse resp = stub.get(KVStoreProto.GetRequest.newBuilder().setKey(args[2]).build());
+            System.out.println("Value: " + resp.getValue());
+        }
 
         channel.shutdown();
     }

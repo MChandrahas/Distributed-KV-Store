@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  # --- Node 1 (LEADER) ---
+  # We give it a list of peers to replicate to.
+  node1:
+    image: kv-store:latest
+    container_name: kv-node-1
+    ports:
+      - "9091:9090"
+    environment:
+      - PEERS=kv-node-2:9090,kv-node-3:9090
+    networks:
+      - kv-net
+    depends_on:
+      - node2
+      - node3
+
+  # --- Node 2 (FOLLOWER) ---
+  # No peers configured, so it just stores data and shuts up.
+  node2:
+    image: kv-store:latest
+    container_name: kv-node-2
+    ports:
+      - "9092:9090"
+    networks:
+      - kv-net
+
+  # --- Node 3 (FOLLOWER) ---
+  node3:
+    image: kv-store:latest
+    container_name: kv-node-3
+    ports:
+      - "9093:9090"
+    networks:
+      - kv-net
+
+networks:
+  kv-net:
+    driver: bridge

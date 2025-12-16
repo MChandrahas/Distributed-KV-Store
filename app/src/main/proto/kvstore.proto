@@ -1,17 +1,19 @@
 syntax = "proto3";
 
-package kvstore;
-
-option java_package = "com.distributed.kv";
+package com.distributed.kv;
 option java_outer_classname = "KVStoreProto";
 
-// The Service Definition
 service KVStore {
+  // Client facing
   rpc Put (PutRequest) returns (PutResponse);
   rpc Get (GetRequest) returns (GetResponse);
+
+  // Raft Internal
+  rpc RequestVote (VoteRequest) returns (VoteResponse);
+  rpc AppendEntries (AppendRequest) returns (AppendResponse);
 }
 
-// Request/Response Messages
+// --- Client Messages ---
 message PutRequest {
   string key = 1;
   string value = 2;
@@ -26,5 +28,30 @@ message GetRequest {
 }
 
 message GetResponse {
-  string value = 1; // Empty if not found
+  string value = 1;
+}
+
+// --- Raft Messages ---
+
+// "Vote for me!"
+message VoteRequest {
+  int32 term = 1;          // Candidate's Term
+  string candidateId = 2;  // Who is asking?
+}
+
+message VoteResponse {
+  int32 term = 1;          // Voter's current term
+  bool voteGranted = 2;    // Yes or No
+}
+
+// "I am Leader / Here is data"
+message AppendRequest {
+  int32 term = 1;          // Leader's Term
+  string leaderId = 2;     // So followers can redirect clients
+  // We will add log entries here later for replication
+}
+
+message AppendResponse {
+  int32 term = 1;
+  bool success = 2;
 }

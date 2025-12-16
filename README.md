@@ -1,7 +1,7 @@
 
 # Distributed KV Store: A Learning Project
 
-**Status:** Week 2 (Leader–Follower Replication)  
+**Status:** Week 2 (Leader-Follower Replication)  
 **License:** MIT  
 **Code:** https://github.com/MChandrahas/Distributed-KV-Store
 
@@ -10,36 +10,34 @@
 ## 1. Project Overview
 
 ### Purpose
-This is an **academic-grade exploration** of distributed systems fundamentals. The goal is to **build, break, and learn**—to understand why systems like etcd and ZooKeeper are complex by experiencing the pain of data inconsistency firsthand.
+This is an **academic-grade exploration** of distributed systems fundamentals. The goal is to **build, break, and learn** to understand why systems like etcd and ZooKeeper are complex by experiencing the pain of data inconsistency firsthand.
 
-**Current Scope:** Leader–Follower replication with asynchronous writes  
+**Current Scope:** Leader-Follower replication with asynchronous writes  
 **Core Lesson:** Without a consensus algorithm (Raft/Paxos), a distributed system is just a *“Split-Brain Generator.”*
 
 ---
 
-## 2. System Architecture (Phase 3: Persistence)
+## 2. System Architecture (Phase 4: Raft Consensus)
 
 ```mermaid
 graph TD
-    Client[gRPC Client] -->|1. PUT key=100| Leader[Node 1: Leader]
-    
-    subgraph "Internal Node Architecture"
-        Leader -->|2. Append| WAL[Disk: Write-Ahead Log]
-        WAL -->|3. Update| Index[(RAM: B+ Tree)]
+    subgraph "Raft Cluster"
+        L[Leader Node] <-->|Heartbeats & Log Replication| F1[Follower Node 1]
+        L <-->|Heartbeats & Log Replication| F2[Follower Node 2]
     end
-
-    Leader -->|4. Async Replicate| Follower1[Node 2]
-    Leader -->|4. Async Replicate| Follower2[Node 3]
+    
+    Client[Client] -.->|PUT/GET| L
+    
+    note[Self-Healing: If Leader dies, Followers hold an election]
 ```
 
 ### Components
 
+* **Consensus:** Raft Algorithm (Leader Election, Heartbeats).
 * **Communication:** gRPC (Protobuf) over Netty.
 * **Storage Engine:** In-memory B+ Tree (Order 128).
 * **Persistence:** Write-Ahead Log (WAL) for crash recovery.
-* **Replication:** Naive Leader–Follower (Push model).
 * **Discovery:** Static peer lists via environment variables.
-
 ---
 
 ## 3. Quick Start
@@ -133,4 +131,4 @@ The system lacks **Anti-Entropy** (log replay). When a node reconnects, it has n
 
 ## License
 
-MIT — use this to learn from my mistakes.
+MIT   use this to learn from my mistakes.

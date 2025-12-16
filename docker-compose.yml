@@ -10,7 +10,7 @@ services:
       - "9091:9090"
     environment:
       - PEERS=kv-node-2:9090,kv-node-3:9090
-      - HOSTNAME=node1  # Used for log filename (node1.log)
+      - HOSTNAME=node1
     volumes:
       - ./cluster-data/node1:/app/kv-data
     networks:
@@ -27,6 +27,7 @@ services:
     ports:
       - "9092:9090"
     environment:
+      - PEERS=kv-node-1:9090,kv-node-3:9090  # <--- ADDED THIS
       - HOSTNAME=node2
     volumes:
       - ./cluster-data/node2:/app/kv-data
@@ -41,6 +42,7 @@ services:
     ports:
       - "9093:9090"
     environment:
+      - PEERS=kv-node-1:9090,kv-node-2:9090  # <--- ADDED THIS
       - HOSTNAME=node3
     volumes:
       - ./cluster-data/node3:/app/kv-data

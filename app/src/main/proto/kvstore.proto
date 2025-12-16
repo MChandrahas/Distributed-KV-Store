@@ -47,8 +47,11 @@ message VoteResponse {
 // "I am Leader / Here is data"
 message AppendRequest {
   int32 term = 1;          // Leader's Term
-  string leaderId = 2;     // So followers can redirect clients
-  // We will add log entries here later for replication
+  string leaderId = 2;     // Leader ID
+  
+  // Replication Fields
+  string key = 3;          // (Optional) Key to replicate
+  string value = 4;        // (Optional) Value to replicate
 }
 
 message AppendResponse {

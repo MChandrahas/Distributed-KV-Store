@@ -66,11 +66,12 @@ public class Server {
         scheduler.scheduleAtFixedRate(() -> {
             if (raft.getState() == RaftNode.State.LEADER) return;
 
-            long timeout = 150 + random.nextInt(150); // Random timeout 150-300ms
+            // CHANGE THIS: Increase timeout to 1000ms - 2000ms
+            long timeout = 1000 + random.nextInt(1000); 
             if (System.currentTimeMillis() - raft.getLastHeartbeat() > timeout) {
                 startElection();
             }
-        }, 0, 50, TimeUnit.MILLISECONDS);
+        }, 0, 200, TimeUnit.MILLISECONDS); // Check every 200ms
     }
 
     private static void startElection() {
@@ -110,7 +111,7 @@ public class Server {
                         .build());
                 } catch (Exception e) { /* Peer down */ }
             }
-        }, 0, 50, TimeUnit.MILLISECONDS); // Send every 50ms
+        }, 0, 200, TimeUnit.MILLISECONDS); // CHANGE THIS: Send every 200ms
     }
 
     // --- GRPC SERVICE ---
@@ -121,21 +122,35 @@ public class Server {
         @Override
         public void put(KVStoreProto.PutRequest req, StreamObserver<KVStoreProto.PutResponse> responseObserver) {
             if (raft.getState() != RaftNode.State.LEADER) {
-                // In a real system, we would return "Not Leader" error
-                // For now, we just reject it.
                 responseObserver.onError(new Exception("I am not the Leader"));
                 return;
             }
 
             try {
                 int key = Integer.parseInt(req.getKey());
+
+                // 1. Leader Write (Local Persistence)
                 wal.writeEntry(key, req.getValue());
                 storage.insert(key, req.getValue());
-                
-                // Note: We temporarily removed replication here to focus on Election logic
+                System.out.println("Leader applied: " + key);
+
+                // 2. Replicate to Followers
+                for (KVStoreGrpc.KVStoreBlockingStub peer : peers) {
+                    try {
+                        peer.appendEntries(KVStoreProto.AppendRequest.newBuilder()
+                            .setTerm(raft.getTerm())
+                            .setLeaderId(System.getenv("HOSTNAME"))
+                            .setKey(req.getKey())     // <--- SENDING DATA
+                            .setValue(req.getValue()) // <--- SENDING DATA
+                            .build());
+                    } catch (Exception e) {
+                        System.err.println("Replication failed: " + e.getMessage());
+                    }
+                }
                 
                 responseObserver.onNext(KVStoreProto.PutResponse.newBuilder().setSuccess(true).build());
                 responseObserver.onCompleted();
+
             } catch (Exception e) {
                 responseObserver.onError(e);
             }
@@ -165,10 +180,23 @@ public class Server {
         // 3. Handle Heartbeat
         @Override
         public void appendEntries(KVStoreProto.AppendRequest req, StreamObserver<KVStoreProto.AppendResponse> responseObserver) {
+            // 1. Heartbeat Logic
             if (req.getTerm() >= raft.getTerm()) {
                 raft.setTerm(req.getTerm());
                 raft.setState(RaftNode.State.FOLLOWER);
-                raft.recordHeartbeat(); // Reset timeout
+                raft.recordHeartbeat();
+            }
+            
+            // 2. Replication Logic (NEW)
+            if (!req.getKey().isEmpty()) {
+                try {
+                    int key = Integer.parseInt(req.getKey());
+                    wal.writeEntry(key, req.getValue()); // Write to Disk
+                    storage.insert(key, req.getValue()); // Write to RAM
+                    System.out.println("Follower replicated: " + key);
+                } catch (Exception e) {
+                    System.err.println("Follower write failed: " + e.getMessage());
+                }
             }
             
             responseObserver.onNext(KVStoreProto.AppendResponse.newBuilder()

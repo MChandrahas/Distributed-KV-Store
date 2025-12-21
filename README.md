@@ -23,7 +23,7 @@ This is an **academic-grade exploration** of distributed systems fundamentals. T
 graph TD
     Client[Client] -->|1. PUT key=500| Leader[Leader Node]
 
-    subgraph "Raft Cluster"
+    subgraph "Raft Cluster (gRPC/Protobuf)"
         Leader -->|2. Write WAL & RAM| LeaderStore[(Leader Storage)]
         Leader -->|3. Replicate Data| Follower1[Follower Node 1]
         Leader -->|3. Replicate Data| Follower2[Follower Node 2]
@@ -109,13 +109,13 @@ I implemented **Raft Leader Election**. Now, when a leader dies:
 
 **Test Setup:** Docker Desktop (WSL2) on Local Machine. Single-threaded blocking client.
 
-| Operation            | Scenario                   | Latency (Avg) | Throughput     |
-| -------------------- | -------------------------- | ------------- | -------------- |
-| **B+ Tree Insert**   | In-Memory Unit Test        | ~0.05 ms      | ~20,000 op/s   |
-| **Cluster Write**    | 3-Node Raft (Leader)       | ~15.0 ms*     | ~60 op/s       |
-| **Cluster Read**     | 3-Node Raft (Follower)     | ~2.0 ms       | ~500 op/s      |
+| Operation          | Scenario                   | Latency (Avg) | Throughput       |
+| ------------------ | -------------------------- | ------------- | ---------------- |
+| **B+ Tree Insert** | In-Memory Unit Test        | **~0.004 ms** | **~250,000 op/s**|
+| **Cluster Write**  | 3-Node Raft (Leader)       | ~15.0 ms*     | ~60 op/s         |
+| **Cluster Read**   | 3-Node Raft (Follower)     | ~2.0 ms       | ~500 op/s        |
 
-*\*Note: Write latency includes Synchronous Replication to 3 nodes and Disk I/O (WAL) on the Leader.*
+*\*Note: Write latency is intentionally high. It includes Synchronous Replication to 3 nodes and Disk I/O (WAL) to ensure Strong Consistency.*
 ---
 
 ## 6. Limitations (Interview Guide)
@@ -131,10 +131,11 @@ I implemented **Raft Leader Election**. Now, when a leader dies:
 
 ## 7. Tech Stack
 
-* **Java 17**   Core logic
-* **gRPC / Protobuf**   RPC layer
-* **Docker Compose**   Orchestration
-* **Gradle 8.5**   Build tool
+* **Java 17** Core logic & B+ Tree Engine
+* **gRPC / Protobuf** RPC layer for node communication
+* **Netty** Underlying non-blocking I/O framework
+* **Docker Compose** Cluster orchestration
+* **Gradle 8.5** Build tool
 
 ---
 

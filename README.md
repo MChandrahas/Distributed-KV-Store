@@ -99,7 +99,7 @@ I used this project to verify distributed systems theory. Below is the critical 
 
 I implemented **Raft Leader Election**. Now, when a leader dies:
 
-1. Followers wait for a randomized timeout (e.g., 1000–2000 ms to account for Docker latency)
+1. Followers wait for a randomized timeout (e.g., 1000-2000 ms to account for Docker latency)
 2. They request votes with a **term number**
 3. Only one node can achieve majority (2/3)
 4. **Result:** Split-brain is mathematically impossible

@@ -44,6 +44,22 @@ graph TD
 * **Communication:** gRPC (Protobuf) over Netty
 
 ---
+## 2b. Cloud-Native Observability (New)
+
+To meet modern observability standards, I implemented a **Sidecar Pattern** using Go and Kubernetes.
+
+* **Architecture:** The Java application runs in a Pod alongside a **Go-based Prometheus Exporter**.
+* **Mechanism:** The Go sidecar scrapes the Java app's internal JSON state (`/status`) over localhost and converts it into OpenMetrics standard format (`/metrics`) for Prometheus.
+* **Orchestration:** Deployed on **MicroK8s** using StatefulSets to maintain stable network identity for Raft consensus.
+
+```mermaid
+graph LR
+    subgraph "Kubernetes Pod"
+        Java[Java KV Store] -- JSON (localhost:8080) --> Go[Go Exporter]
+    end
+    Go -- Metrics (Port 9100) --> Prometheus[Prometheus / Grafana]
+```
+---
 
 ## 3. Quick Start
 
